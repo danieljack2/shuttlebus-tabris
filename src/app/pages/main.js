@@ -1,139 +1,158 @@
-var config = require('./../../config.js').config;
-var itemListComponent = require('./../components/item_list');
-var feedShowcase = require('./../components/feed_showcase');
-var updateUIColors = require('./../styles/theme').updateUIColors;
-var getThemeStyle = require('./../styles/theme').getThemeStyle;
-var aboutPage = require('./about.js');
-var getIconSrc = require('./../helpers/icon').getIconSrc;
-var imageSlider = require('./../components/image_slider');
-var detailScreen = require('./../pages/item_details');
+new tabris.Drawer().append(new tabris.PageSelector());
 
+var routeListPage = createRouteListPage("Shuttle Bus");
 
-// Sizing helpers.
-var sizing = require('./../helpers/sizing');
-var isTablet = sizing.isTablet;
-var imageWidth = Math.floor( isTablet ? tabris.device.get("screenWidth") * config.imgShowcaseScreenWidthRatio.tablet : tabris.device.get("screenWidth") * config.imgShowcaseScreenWidthRatio.phone );
-var imageHeightRatio = isTablet ? config.imgShowcaseSizeHeightToWidthRatio.tablet : config.imgShowcaseSizeHeightToWidthRatio.phone;
-var imageHeight = Math.floor(imageHeightRatio * imageWidth);
+routeListPage.open();
 
+function createRouteListPage(title) {
+    return new tabris.Page({
+        title: title,
+        topLevel: true,
+        style: ["FULLSCREEN"]
+    }).append(displayRouteListPage());
+}
 
-function init() {
-    // Ok we need a page to contain all the application UI
-    var page = tabris.create("Page", { title: config.appName , topLevel : true}) ;
+function createRoutePage(title, routeId) {
+    return new tabris.Page({
+        title: title,
+        topLevel: false,
+        style: ["FULLSCREEN"]
+    }).append(displayRoutePage(routeId));
+}
 
-    //var Navigation = tabris.create('TabFolder', { left: 0, top: 0, right: 0, bottom:0 , elevation: 8 , tabBarLocation: "bottom", paging:  false,  textColor: "#ff8400",}).appendTo(page);
-    //page.set("_navigation", Navigation);
+function displayRoutePage(routeId) {
+    var composite = new tabris.Composite({
+        background: "white",
+    });
 
-    // Now we will create a tab per source and add to the container
+    composite.append(displayHeader());
 
-    //var HomeTab = tabris.create( 'Tab', { title: "Home", background: 'white', image: getIconSrc('home'), _imgName: 'home' } ).appendTo(Navigation);
-    ////tabris.create( 'Tab', { title: "Discover", background: 'white', image: getIconSrc('compass'), } ).appendTo(Navigation);
-    //tabris.create( 'Tab', { title: "Search", background: 'white', image: getIconSrc('search'), _imgName: 'search'} ).appendTo(Navigation);
-    //tabris.create( 'Tab', { title: "Favourites", background: 'white', image: getIconSrc('like'), _imgName: 'like' } ).appendTo(Navigation);
-    //tabris.create( 'Tab', { title: "My account", background: 'white', image: getIconSrc('user'), _imgName: 'user' } ).appendTo(Navigation);
-    //tabris.create( 'Tab', { title: "More", background: 'white', image: getIconSrc('info') , _imgName: 'info'} ).appendTo(Navigation);
-    //
-    //// When the user changes the tab, change the app visuals
-    //Navigation.on("change:selection", function(widget, tab) {
-    //    //colorUpdates (tab.get('_feed').color );
-    //    console.log(tab.get('_imgName'));
-    //    tab.set('image', getIconSrc(tab.get('_imgName') + '_full') )
-    //    tab.trigger("appear",tab);
-    //});
-    //
-    //var HometabContent = tabris.create('Composite', { left: 0, top: 0, right: 0, bottom:0}).appendTo(HomeTab);
-    //var MainContent = HometabContent;
+    // Create loading indicator
+    var activityIndicator = new tabris.ActivityIndicator({centerX: 0, centerY: 0}).appendTo(composite);
 
-    var MainContent = page;
+    // Run async remote request with fetch
+    fetch("https://qutvirtual4.qut.edu.au/delegate/shuttleBusServices/routes/" + routeId).then(function(response) {
+        return response.json();
+    }).catch(function(err) {
 
-    if(config.mainPage === "tabs"){
-        /**********************
-         *   Tabs
-         ******************/
-        // So we need a Tab Container
-        var TabFolder = tabris.create('TabFolder', { left: 0, top: 0, right: 0, bottom:0 , elevation: 8 , tabBarLocation: "top", paging: tabris.device.get("platform") === "iOS" ? false : true} ).appendTo(MainContent);
-        page.set("_tabs", TabFolder);
+        // On error show want went wrong and reload button.
+        composite.append(createTextView("Failure: " + err || "Error loading shuttle bus routes"));
+    }).then(function(json) {
 
-        // Now we will create a tab per source and add to the container
-        config.feeds.forEach(function( feed ){
-            var tab = tabris.create( 'Tab', { title: feed.name, background: 'white', _feed: feed} ).appendTo(TabFolder);
-            itemListComponent( feed , tab ).appendTo(tab);
-        });
-
-        // When the user changes the tab, change the app visuals
-        TabFolder.on("change:selection", function(widget, tab) {
-            colorUpdates (tab.get('_feed').color , TabFolder);
-        });
-
-        // Update the UI based on the theme and active tab.
-        colorUpdates (config.feeds[0].color , TabFolder);
-    }
-    else if(config.mainPage === "showcase" || true){
-        /**********************
-         *   Showcase
-         ******************/
-        var container = tabris.create("ScrollView", { left: 0, right: 0, top: 0, bottom: 0 , direction:"vertical"}).appendTo(MainContent);
-
-        if (config.slider){
-            imageSlider(config.slider).on("itemSelected",function(item){
-               detailScreen.open(item.title, item);
-            }).appendTo(container);
+        // Dispose of the activity loader via direct reference
+        activityIndicator.dispose();
+        var nextTimes = "";
+        composite.append(createTextView(json.title));
+        for (i = 0; i < json.times.length; i++) {
+            if (i === 0) {
+                composite.append(createTextView("Next: " + json.times[i].departDate));
+            } else {
+                if (i === 1) {
+                    composite.append(createNextTextView("Then:"));
+                }
+                var colour = 808080;
+                composite.append(createNextTimeView(json.times[i].departDate, "#" + (colour + (i + 10))))
+            }
         }
+    });
 
-        // Now we will showcase per source and add to the container
-        config.feeds.forEach(function( feed ){
-            feedShowcase( feed , container ).appendTo(container);
+    return composite;
+}
+
+function displayRouteListPage() {
+    var composite = new tabris.Composite({
+        background: "white"
+    });
+
+    composite.append(displayHeader());
+
+    // Create loading indicator
+    var activityIndicator = new tabris.ActivityIndicator({centerX: 0, centerY: 0}).appendTo(composite);
+
+    // Run async remote request with fetch
+    fetch("https://qutvirtual4.qut.edu.au/delegate/shuttleBusServices/routes").then(function(response) {
+        return response.json();
+    }).catch(function(err) {
+
+        // On error show want went wrong and reload button.
+        composite.append(createTextView("Failure: " + err || "Error loading shuttle bus routes"));
+    }).then(function(json) {
+
+        // Dispose of the activity loader via direct reference
+        activityIndicator.dispose();
+
+        var view = new tabris.CollectionView({
+            layoutData: {left: 0, right: 0, top: "prev()", bottom: 0},
+            itemHeight: 72,
+            items: json.routes,
+            initializeCell: function(cell) {
+                var titleTextView = new tabris.TextView({
+                    layoutData: {left: 16, right: 16, top: 16},
+                    font: "16px Arial, sans-serif"
+                }).appendTo(cell);
+                var border = new tabris.Composite({
+                    layoutData: {left: 0, bottom: 0, right: 0, height: 1},
+                    background: "#e3e3e3"
+                }).appendTo(cell);
+                cell.on("change:item", function(widget, route) {
+                    titleTextView.set("text", route.title);
+                });
+            }
+        }).on("select", function(target, value) {
+            createRoutePage(value.title, value.id).open();
         });
+        composite.append(view);
+        /*for (i = 0; i < json.routes.length; i++) {
+         composite.append(createRouteButton(json.routes[i].title, json.routes[i].id));
+         }*/
+    });
 
-        container.on("scroll",function(widget, offset){
-            var activeFeedIndex = Math.min (Math.max (Math.floor (offset.y / (imageHeight + 90)) , 0 ) , config.feeds.length-1);
-            colorUpdates (config.feeds[activeFeedIndex].color);
-        });
+    return composite;
+}
 
-        // Update the UI based on the theme and active tab.
-        colorUpdates (config.feeds[0].color);
-    }
+function displayHeader() {
+    var composite = new tabris.Composite({
+        layoutData: {left: 0, top: 0, right: 0, height:50},
+        background: "#114A81",
+        opacity: 1
+    });
 
+    composite.append(new tabris.ImageView({
+        image: "images/dw-logo-large.png"
+    }));
 
-    /*************************
-     * Add an action to the nav bar
-     **************************/
-    page.on("appear", function(){
-        addViewAction(page);
+    return composite;
+}
+
+function createNextTimeView(text, colour) {
+    return new tabris.TextView({
+        text: text,
+        layoutData: {left: "prev() 12", top: 124},
+        background: colour
+    });
+}
+
+function createNextTextView(text) {
+    return new tabris.TextView({
+        text:text,
+        layoutData: {left: 16, top: "prev() 12"}
     })
-    .on("disappear", function(){
-        page.get('_openLinkAction').dispose();
+}
+
+function createTextView(text) {
+    return new tabris.TextView({
+        text: text,
+        markupEnabled: true,
+        layoutData: {left: 16, top: "prev() 12"},
     });
-
-    return page;
 }
 
-function open(){
-    var p = init();
-    return p.open();
-}
-
-module.exports = {
-    init: init,
-    open: open
-};
-
-
-function colorUpdates(color,  TabFolder){
-    var styles = getThemeStyle(color);
-    updateUIColors(color);
-    if(TabFolder){
-        TabFolder.set(styles.tabs);
-    }
-}
-
-function addViewAction(page){
-    var openLinkAction = tabris.create("Action", {
-        placementPriority: "high",
-        title: " ",
-        image: getIconSrc("info")
+function createRouteButton(title, routeId) {
+    return new tabris.Button({
+        layoutData: {left: 10, top: "prev() 12"},
+        text: title,
+        id: "routeButton" + routeId
     }).on("select", function() {
-        aboutPage.open();
+        createRoutePage(title, routeId).open();
     });
-    page.set('_openLinkAction',openLinkAction);
 }

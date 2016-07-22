@@ -1,6 +1,6 @@
 {
-  "title": "Tabris.js Template App",
-  "description": "7 apps in 1 with examples for multiple use cases.",
+  "title": "ShuttleBus",
+  "description": "Shuttle bus in tabris",
   "main": "index.js",
   "scripts": {
     "start": "http-server -c-1",

@@ -21,7 +21,7 @@ function getItems(feedConfig , overideConfig){
  		var tmp = [];
  		for (var key in targetFeed){
 		    tmp.push(key + "=" + encodeURIComponent( targetFeed[key] ));
- 		}
+}
  		queryParamsStr = tmp.join("&");
 
 		if(requestCache[queryParamsStr]){
